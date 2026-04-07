@@ -22,9 +22,11 @@ canvas{display:block;width:100%;height:100%}
   font-size:clamp(11px,2.5vw,15px);font-weight:600;letter-spacing:2px;color:rgba(255,255,255,0.5);z-index:2;text-align:center}
 #timer{position:absolute;bottom:16px;left:16px;font-family:'Space Mono',monospace;font-size:10px;color:var(--dim);z-index:2}
 #legend{position:absolute;bottom:16px;right:16px;font-family:'Space Mono',monospace;font-size:10px;z-index:2;text-align:right;line-height:1.8}
-#speed{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);pointer-events:auto;z-index:2;
-  background:rgba(11,61,145,0.1);border:1px solid rgba(30,101,200,0.2);color:var(--dim);
-  padding:6px 18px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer}
+#controls{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:auto;z-index:2}
+#controls button{background:rgba(11,61,145,0.1);border:1px solid rgba(30,101,200,0.2);color:var(--dim);
+  padding:6px 14px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+#controls button:active{background:rgba(11,61,145,0.3)}
 
 /* AI Decision Panel */
 #ai-panel{position:absolute;bottom:60px;left:14px;z-index:2;pointer-events:none;
@@ -92,7 +94,11 @@ canvas{display:block;width:100%;height:100%}
 <div id="phase-label"></div>
 <div id="timer">T+ 00:00:00</div>
 <div id="legend"><span style="color:var(--out)">──往路 OUTBOUND</span><br><span style="color:var(--inb)">── 復路 INBOUND</span></div>
-<button id="speed">x5</button>
+<div id="controls">
+  <button id="reset" onclick="resetSim()">⟲ RESET</button>
+  <button id="pause" onclick="togglePause()">❚❚ PAUSE</button>
+  <button id="speed">x20</button>
+</div>
 
 <!-- AI Decision Panel -->
 <div id="ai-panel">
@@ -556,7 +562,6 @@ let stars=[];for(let i=0;i<200;i++)stars.push({x:Math.random(),y:Math.random(),r
 
 // Trail history
 const trail = [];
-const MAX_TRAIL = 6000;
 
 let camX=0,camY=0,zoom=1;
 const DS=0.0000006;
@@ -564,9 +569,16 @@ function scr(x,y){const s=DS*zoom;return{x:W/2+(x-camX)*s,y:H/2+(y-camY)*s}}
 
 function updateCam(state){
   const dE=Math.hypot(state.x,state.y);
+  const dM=Math.hypot(state.x-state.moonX,state.y-state.moonY);
   let tZoom,tCX,tCY;
   if(state.phase==='tli'){
     tZoom=2.5;tCX=0;tCY=0;
+  }else if(dM<DEM*0.15){
+    // Near Moon: zoom in and track midpoint between ship and Moon
+    const closeness=1-dM/(DEM*0.15);
+    tZoom=1.2+closeness*3.5;
+    tCX=state.moonX*0.6+state.x*0.4;
+    tCY=state.moonY*0.6+state.y*0.4;
   }else{
     const progress=Math.min(dE/(DEM*1.2),1);
     tZoom=Math.max(0.38,1.2-progress*0.82);
@@ -592,27 +604,30 @@ function drawBody(wx,wy,radius,colors,label){
 }
 
 function drawMoonOrbit(moonX,moonY){
-  const p=scr(0,0);const mDist=Math.hypot(moonX,moonY);const r=mDist*DS*zoom;
-  X.strokeStyle='rgba(107,170,238,0.05)';X.lineWidth=1;X.setLineDash([3,6]);
+  const p=scr(0,0);const r=DEM*DS*zoom;
+  X.strokeStyle='rgba(107,170,238,0.15)';X.lineWidth=1;X.setLineDash([4,8]);
   X.beginPath();X.arc(p.x,p.y,r,0,6.283);X.stroke();X.setLineDash([]);
 }
 
 function drawTrails(){
   if(trail.length<2)return;
-  X.lineCap='round';
-  for(let i=1;i<trail.length;i++){
-    const pt=trail[i], prev=trail[i-1];
-    const p=scr(pt.x,pt.y), pp=scr(prev.x,prev.y);
-    const dist=Math.hypot(p.x-pp.x,p.y-pp.y);
-    if(dist<W&&dist>0.3){
-      const isOut=pt.phase==='outbound'||pt.phase==='tli';
-      const age = 1 - (trail.length - i) / trail.length;
-      const alpha=0.15 + age * 0.55;
-      X.strokeStyle=isOut?`rgba(74,192,245,${alpha})`:`rgba(245,166,35,${alpha})`;
-      X.lineWidth=Math.max(1.5,2*zoom);
-      X.beginPath();X.moveTo(pp.x,pp.y);X.lineTo(p.x,p.y);X.stroke();
-    }
+  X.lineCap='round';X.lineJoin='round';
+  // Draw outbound and inbound as two continuous paths
+  const paths={out:[],inb:[]};
+  for(let i=0;i<trail.length;i++){
+    const pt=trail[i],p=scr(pt.x,pt.y);
+    const isOut=pt.phase==='outbound'||pt.phase==='tli';
+    (isOut?paths.out:paths.inb).push(p);
   }
+  function strokePath(pts,color){
+    if(pts.length<2)return;
+    X.strokeStyle=color;X.lineWidth=Math.max(1.5,2*zoom);
+    X.beginPath();X.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)X.lineTo(pts[i].x,pts[i].y);
+    X.stroke();
+  }
+  strokePath(paths.out,'rgba(74,192,245,0.6)');
+  strokePath(paths.inb,'rgba(245,166,35,0.6)');
 }
 
 function drawOrion(px,py,angle,scale,phase,aiAction){
@@ -782,19 +797,41 @@ const ai = new OrionAI();
 let simState = initSimulation();
 let missionComplete = false;
 const simDt = 30; // physics timestep: 30 seconds
-const stepsPerFrame = [1, 3, 5, 10, 20];
-let spdIdx = 2;
+const stepsPerFrame = [1, 3, 5, 10, 20, 50];
+let spdIdx = 4;
+let paused = false;
 
 document.getElementById('speed').addEventListener('click', () => {
   spdIdx = (spdIdx + 1) % stepsPerFrame.length;
   document.getElementById('speed').textContent = 'x' + stepsPerFrame[spdIdx];
 });
 
+function togglePause() {
+  paused = !paused;
+  document.getElementById('pause').textContent = paused ? '▶ PLAY' : '❚❚ PAUSE';
+}
+
+function resetSim() {
+  paused = false;
+  document.getElementById('pause').textContent = '❚❚ PAUSE';
+  missionComplete = false;
+  simState = initSimulation();
+  trail.length = 0;
+  ai.fuel = 1.0;
+  ai.systemHealth = { thermal: 1, power: 1, comms: 1, nav: 1 };
+  ai.currentAction = null;
+  ai.allScores = [];
+  ai.eventLog = [];
+  ai.decisionInterval = 0;
+  ai.aborted = false;
+  camX = 0; camY = 0; zoom = 1;
+}
+
 function loop() {
   X.clearRect(0, 0, W, H);
   drawStars();
 
-  if (!missionComplete) {
+  if (!missionComplete && !paused) {
     const steps = stepsPerFrame[spdIdx];
     for (let i = 0; i < steps; i++) {
       // AI decides
@@ -818,7 +855,6 @@ function loop() {
       // Record trail
       if (trail.length === 0 || simState.t - trail[trail.length-1].t >= 300) {
         trail.push({ x: simState.x, y: simState.y, phase: simState.phase, t: simState.t });
-        if (trail.length > MAX_TRAIL) trail.shift();
       }
 
       if (done) { missionComplete = true; break; }
