@@ -50,6 +50,22 @@ canvas{display:block;width:100%;height:100%}
 .sys-indicator{font-size:9px;letter-spacing:1px}
 .sys-ok{color:var(--green)}.sys-warn{color:var(--warn)}.sys-crit{color:var(--crit)}
 
+/* Mobile: collapsible AI panel */
+@media(max-width:600px){
+  #ai-panel{bottom:50px;left:8px;right:8px;min-width:0;max-width:none;padding:8px 10px}
+  #ai-panel.collapsed #ai-scores,#ai-panel.collapsed #ai-status{display:none}
+  #ai-panel.collapsed{padding:6px 10px}
+  #ai-toggle{display:block}
+  #ai-log{top:auto;bottom:50px;right:8px;max-width:180px;font-size:8px}
+  #hud-top{padding:6px 8px}
+  .hv{font-size:clamp(14px,3vw,20px)}
+  #phase-label{bottom:42px}
+}
+@media(min-width:601px){#ai-toggle{display:none}}
+#ai-toggle{position:absolute;top:6px;right:8px;background:none;border:1px solid rgba(74,158,245,0.3);
+  color:rgba(74,158,245,0.6);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;
+  padding:2px 6px;cursor:pointer;pointer-events:auto;border-radius:1px}
+
 /* Anomaly Alert */
 #anomaly-alert{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;
   font-family:'Space Mono',monospace;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.3s}
@@ -80,7 +96,7 @@ canvas{display:block;width:100%;height:100%}
 
 <!-- AI Decision Panel -->
 <div id="ai-panel">
-  <div class="ai-title">ORION UTILITY AI</div>
+  <div class="ai-title">ORION UTILITY AI<button id="ai-toggle" onclick="toggleAI()">▼</button></div>
   <div id="ai-decision">INITIALIZING...</div>
   <div id="ai-scores"></div>
   <div id="ai-status">
@@ -103,6 +119,11 @@ canvas{display:block;width:100%;height:100%}
 <div id="ai-log"></div>
 
 <script>
+function toggleAI(){
+  const p=document.getElementById('ai-panel'),b=document.getElementById('ai-toggle');
+  p.classList.toggle('collapsed');b.textContent=p.classList.contains('collapsed')?'▶':'▼';
+}
+if(window.innerWidth<=600)document.getElementById('ai-panel').classList.add('collapsed');
 const C=document.getElementById('c'),X=C.getContext('2d');
 let W,H;const dpr=Math.min(devicePixelRatio||1,2);
 function resize(){W=innerWidth;H=innerHeight;C.width=W*dpr;C.height=H*dpr;
