@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ARTEMIS II - Utility AI Mission Simulation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
+:root{--red:#FC3D21;--bg:#040810;--dim:rgba(232,237,245,0.3);--accent:#4A9EF5;--out:#4AC0F5;--inb:#F5A623;--green:#0C6;--warn:#F5A623;--crit:#FC3D21}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:#E8EDF5;font-family:'Space Grotesk',system-ui,sans-serif;
+  overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;position:fixed;width:100%;height:100%}
+canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:2}
+#hud-top{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(30,101,200,0.1)}
+.hud-block{display:flex;flex-direction:column}.hud-block.right{align-items:flex-end}
+.hl{font-family:'Space Mono',monospace;font-size:9px;color:rgba(74,158,245,0.5);letter-spacing:2px}
+.hv{font-family:'Space Mono',monospace;font-size:clamp(16px,3.5vw,24px);font-weight:700;color:#fff;line-height:1.2}
+.hv span{font-size:9px;font-weight:400;color:var(--dim);margin-left:2px}
+.ptag{display:inline-block;padding:2px 8px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;border:1px solid;margin-bottom:4px}
+#phase-label{position:absolute;bottom:50px;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;
+  font-size:clamp(11px,2.5vw,15px);font-weight:600;letter-spacing:2px;color:rgba(255,255,255,0.5);z-index:2;text-align:center}
+#timer{position:absolute;bottom:16px;left:16px;font-family:'Space Mono',monospace;font-size:10px;color:var(--dim);z-index:2}
+#legend{position:absolute;bottom:16px;right:16px;font-family:'Space Mono',monospace;font-size:10px;z-index:2;text-align:right;line-height:1.8}
+#speed{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);pointer-events:auto;z-index:2;
+  background:rgba(11,61,145,0.1);border:1px solid rgba(30,101,200,0.2);color:var(--dim);
+  padding:6px 18px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer}
+
+/* AI Decision Panel */
+#ai-panel{position:absolute;bottom:60px;left:14px;z-index:2;pointer-events:none;
+  background:rgba(4,8,16,0.85);border:1px solid rgba(30,101,200,0.2);padding:10px 14px;
+  font-family:'Space Mono',monospace;font-size:10px;min-width:260px;max-width:320px;border-radius:2px}
+#ai-panel .ai-title{font-size:9px;letter-spacing:3px;color:rgba(74,158,245,0.6);margin-bottom:8px;font-weight:700}
+#ai-decision{color:#fff;font-weight:700;font-size:12px;margin-bottom:6px}
+#ai-scores{line-height:1.6}
+.score-row{display:flex;align-items:center;gap:6px}
+.score-label{width:72px;color:rgba(232,237,245,0.5);font-size:9px;text-align:right;flex-shrink:0}
+.score-bar-bg{flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:1px;overflow:hidden}
+.score-bar{height:100%;border-radius:1px;transition:width 0.3s}
+.score-val{width:30px;font-size:9px;color:rgba(232,237,245,0.4);text-align:right;flex-shrink:0}
+
+/* Fuel & System Health */
+#ai-status{margin-top:8px;padding-top:8px;border-top:1px solid rgba(30,101,200,0.1)}
+#fuel-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+#fuel-label{font-size:9px;color:rgba(74,158,245,0.5);letter-spacing:2px;width:42px}
+#fuel-bar-bg{flex:1;height:8px;background:rgba(255,255,255,0.05);border-radius:1px;overflow:hidden}
+#fuel-bar{height:100%;background:var(--green);border-radius:1px;transition:width 0.3s,background 0.3s}
+#fuel-pct{font-size:10px;color:#fff;font-weight:700;width:36px;text-align:right}
+#sys-row{display:flex;gap:8px;margin-top:4px}
+.sys-indicator{font-size:9px;letter-spacing:1px}
+.sys-ok{color:var(--green)}.sys-warn{color:var(--warn)}.sys-crit{color:var(--crit)}
+
+/* Anomaly Alert */
+#anomaly-alert{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;
+  font-family:'Space Mono',monospace;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.3s}
+#anomaly-alert .alert-text{font-size:clamp(14px,3vw,22px);font-weight:700;color:var(--crit);letter-spacing:3px;
+  text-shadow:0 0 20px rgba(252,61,33,0.5)}
+#anomaly-alert .alert-detail{font-size:11px;color:rgba(252,61,33,0.7);margin-top:6px}
+
+/* AI Event Log */
+#ai-log{position:absolute;top:70px;right:14px;z-index:2;pointer-events:none;
+  font-family:'Space Mono',monospace;font-size:9px;text-align:right;max-width:280px}
+.log-entry{color:rgba(232,237,245,0.4);line-height:1.5;transition:opacity 0.5s}
+.log-entry.fresh{color:rgba(74,158,245,0.8)}
+.log-entry.anomaly{color:rgba(252,61,33,0.7)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="hud-top">
+  <div class="hud-block"><div class="hl">VELOCITY</div><div class="hv" id="hS">0<span> KM/S</span></div>
+    <div class="hl" style="margin-top:4px">ALTITUDE</div><div class="hv" id="hA">0<span> KM</span></div></div>
+  <div class="hud-block right"><div class="ptag" id="hP">---</div>
+    <div class="hl" style="margin-top:4px">MISSION DAY</div><div class="hv" id="hD">0</div></div>
+</div></div>
+<div id="phase-label"></div>
+<div id="timer">T+ 00:00:00</div>
+<div id="legend"><span style="color:var(--out)">──往路 OUTBOUND</span><br><span style="color:var(--inb)">── 復路 INBOUND</span></div>
+<button id="speed">x5</button>
+
+<!-- AI Decision Panel -->
+<div id="ai-panel">
+  <div class="ai-title">ORION UTILITY AI</div>
+  <div id="ai-decision">INITIALIZING...</div>
+  <div id="ai-scores"></div>
+  <div id="ai-status">
+    <div id="fuel-row">
+      <div id="fuel-label">FUEL</div>
+      <div id="fuel-bar-bg"><div id="fuel-bar" style="width:100%"></div></div>
+      <div id="fuel-pct">100%</div>
+    </div>
+    <div id="sys-row"></div>
+  </div>
+</div>
+
+<!-- Anomaly Alert Overlay -->
+<div id="anomaly-alert">
+  <div class="alert-text"></div>
+  <div class="alert-detail"></div>
+</div>
+
+<!-- AI Event Log -->
+<div id="ai-log"></div>
+
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');
+let W,H;const dpr=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;C.width=W*dpr;C.height=H*dpr;
+  C.style.width=W+'px';C.style.height=H+'px';X.setTransform(dpr,0,0,dpr,0,0)}
+resize();addEventListener('resize',resize);
+
+// === CONSTANTS ===
+const G=6.674e-11,ME=5.972e24,MM=7.342e22,RE=6371e3,RM=1737e3,DEM=384400e3,MT=27.32*86400;
+
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
+
+// ============================================================
+// WORLD CONTEXT - Orionの状況認識
+// ============================================================
+class WorldContext {
+  constructor(state, fuel, systemHealth) {
+    this.x = state.x; this.y = state.y;
+    this.vx = state.vx; this.vy = state.vy;
+    this.moonX = state.moonX; this.moonY = state.moonY;
+    this.t = state.t;
+    this.phase = state.phase;
+    this.altitude = Math.hypot(state.x, state.y) - RE;
+    this.speed = Math.hypot(state.vx, state.vy);
+    this.moonDist = Math.hypot(state.x - state.moonX, state.y - state.moonY);
+    this.earthDist = Math.hypot(state.x, state.y);
+    this.fuel = fuel;
+    this.systemHealth = systemHealth;
+    this.angleToMoon = Math.atan2(state.moonY - state.y, state.moonX - state.x);
+    this.velocityAngle = Math.atan2(state.vy, state.vx);
+    // Nominal trajectory deviation (distance from expected position)
+    this.nominalDist = state.nominalDist || 0;
+  }
+}
+
+// ============================================================
+// ACTION DEFINITIONS - 行動候補と効用関数
+// ============================================================
+const ACTIONS = {
+  coast: {
+    name: 'COAST',
+    label: '慣性飛行を維持',
+    fuelCost: 0,
+    burnScale: 0,
+    evaluate(ctx) {
+      // On a normal trajectory, coasting is preferred. Fuel conservation bonus.
+      const normalcy = clamp(1.0 - ctx.nominalDist / (80000e3), 0, 1);
+      return normalcy * 0.65 + ctx.fuel * 0.15 + 0.1;
+    }
+  },
+
+  correctionBurn: {
+    name: 'MCC',
+    label: '軌道修正噴射',
+    fuelCost: 0.004,
+    burnScale: 0.15,
+    evaluate(ctx) {
+      // Score rises with trajectory deviation
+      const deviation = clamp(ctx.nominalDist / (50000e3), 0, 1);
+      const hasFuel = ctx.fuel > 0.1 ? 1.0 : 0.15;
+      // Don't correct during reentry
+      if (ctx.phase === 'reentry') return 0;
+      return deviation * 0.85 * hasFuel;
+    }
+  },
+
+  powerSave: {
+    name: 'PWR_SAVE',
+    label: '電力節約モード',
+    fuelCost: 0,
+    burnScale: 0,
+    evaluate(ctx) {
+      const powerCritical = 1.0 - ctx.systemHealth.power;
+      const thermalStress = 1.0 - ctx.systemHealth.thermal;
+      return Math.max(powerCritical * 0.85, thermalStress * 0.5);
+    }
+  },
+
+  abortToEarth: {
+    name: 'ABORT',
+    label: '地球帰還アボート',
+    fuelCost: 0.08,
+    burnScale: 2.0,
+    evaluate(ctx) {
+      // Multiple system failures or critical fuel shortage
+      const failures = Object.values(ctx.systemHealth).filter(v => v < 0.3).length;
+      const lifeThreat = failures >= 2 ? 0.92 : failures >= 1 ? 0.35 : 0;
+      const fuelCritical = ctx.fuel < 0.12 && ctx.phase === 'outbound' ? 0.65 : 0;
+      // Only valid before flyby
+      if (ctx.phase === 'inbound' || ctx.phase === 'reentry') return 0;
+      return Math.max(lifeThreat, fuelCritical);
+    }
+  },
+
+  freeReturnAdjust: {
+    name: 'FREE_RET',
+    label: '自由帰還軌道修正',
+    fuelCost: 0.006,
+    burnScale: 0.2,
+    evaluate(ctx) {
+      if (ctx.phase !== 'outbound' && ctx.phase !== 'flyby') return 0;
+      const nearMoon = clamp(1 - ctx.moonDist / (DEM * 0.4), 0, 1);
+      const deviation = clamp(ctx.nominalDist / (30000e3), 0, 1);
+      return nearMoon * deviation * 0.8 * (ctx.fuel > 0.15 ? 1 : 0.3);
+    }
+  },
+
+  attitudeAdjust: {
+    name: 'ATT_ADJ',
+    label: '姿勢制御',
+    fuelCost: 0.002,
+    burnScale: 0.05,
+    evaluate(ctx) {
+      const commsDegraded = 1 - ctx.systemHealth.comms;
+      const thermalRisk = 1 - ctx.systemHealth.thermal;
+      return Math.max(commsDegraded * 0.65, thermalRisk * 0.7);
+    }
+  }
+};
+
+// ============================================================
+// ORION AI - Utility AI 意思決定エンジン
+// ============================================================
+class OrionAI {
+  constructor() {
+    this.fuel = 1.0;
+    this.systemHealth = { thermal: 1, power: 1, comms: 1, nav: 1 };
+    this.currentAction = null;
+    this.allScores = [];
+    this.eventLog = [];
+    this.decisionInterval = 0;  // frames since last decision
+    this.aborted = false;
+  }
+
+  decide(state) {
+    this.decisionInterval++;
+    // AI evaluates every ~30 sim-steps (avoid thrashing)
+    if (this.decisionInterval < 20 && this.currentAction) return this.currentAction;
+    this.decisionInterval = 0;
+
+    const ctx = new WorldContext(state, this.fuel, this.systemHealth);
+
+    // Score all actions
+    const scored = Object.entries(ACTIONS).map(([id, action]) => ({
+      id, action,
+      score: action.evaluate(ctx)
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    this.allScores = scored;
+
+    // Pick best that we can afford fuel-wise
+    let chosen = scored[0];
+    if (chosen.action.fuelCost > this.fuel) {
+      chosen = scored.find(s => s.action.fuelCost <= this.fuel) || scored.find(s => s.id === 'coast');
+    }
+
+    // Consume fuel
+    this.fuel = Math.max(0, this.fuel - chosen.action.fuelCost);
+
+    // Track abort state
+    if (chosen.id === 'abortToEarth') this.aborted = true;
+
+    const prev = this.currentAction;
+    this.currentAction = chosen;
+
+    // Log significant decisions
+    if (!prev || prev.id !== chosen.id) {
+      this.addLog(`T+${(state.t/3600).toFixed(1)}h AI: ${chosen.action.name} (${chosen.score.toFixed(2)})`, false);
+    }
+
+    return chosen;
+  }
+
+  injectAnomaly(system, severity) {
+    this.systemHealth[system] = clamp(this.systemHealth[system] - severity, 0, 1);
+    const sysNames = { thermal: '熱制御', power: '電力', comms: '通信', nav: '航法' };
+    const level = this.systemHealth[system] < 0.3 ? 'CRITICAL' : 'WARNING';
+    this.addLog(`${level}: ${sysNames[system]}系 異常検出 (${(this.systemHealth[system]*100).toFixed(0)}%)`, true);
+  }
+
+  // Gradual system recovery
+  recover(dt) {
+    for (const sys of Object.keys(this.systemHealth)) {
+      if (this.systemHealth[sys] < 1) {
+        this.systemHealth[sys] = Math.min(1, this.systemHealth[sys] + dt * 0.000002);
+      }
+    }
+  }
+
+  addLog(msg, isAnomaly) {
+    this.eventLog.unshift({ msg, isAnomaly, age: 0 });
+    if (this.eventLog.length > 8) this.eventLog.pop();
+  }
+}
+
+// ============================================================
+// MISSION SIMULATION - リアルタイム逐次計算
+// ============================================================
+
+// Compute nominal (reference) trajectory once for deviation measurement
+function computeNominalPath() {
+  const r0=RE+300e3, v0=Math.sqrt(G*ME/r0);
+  let moonA0=Math.PI*0.22;
+  const transitDays=5.0, moonLead=transitDays*86400*(2*Math.PI/MT);
+  const futMA=moonA0+moonLead;
+  const idealAng=futMA-Math.PI;
+  let bx=Math.cos(idealAng)*r0, by=Math.sin(idealAng)*r0;
+  let bvx=-Math.sin(idealAng)*v0, bvy=Math.cos(idealAng)*v0;
+  const spd=Math.hypot(bvx,bvy);
+  const sma=(r0+DEM*1.02)/2;
+  const vTarget=Math.sqrt(G*ME*(2/r0-1/sma));
+  const dv=vTarget-spd;
+  bvx+=bvx/spd*dv; bvy+=bvy/spd*dv;
+  let bMoonA=moonA0;
+  const dt=30;
+  const path=[];
+  let passedFarSide=false;
+  for(let t=0;t<60*86400;t+=dt){
+    const mx=Math.cos(bMoonA)*DEM, my=Math.sin(bMoonA)*DEM;
+    let dx=-bx,dy=-by,r2=dx*dx+dy*dy,rr=Math.sqrt(r2);
+    let acc=G*ME/r2; bvx+=(dx/rr)*acc*dt; bvy+=(dy/rr)*acc*dt;
+    dx=mx-bx;dy=my-by;r2=dx*dx+dy*dy;rr=Math.sqrt(r2);
+    if(rr>RM*0.5){acc=G*MM/r2; bvx+=(dx/rr)*acc*dt; bvy+=(dy/rr)*acc*dt;}
+    bx+=bvx*dt; by+=bvy*dt;
+    bMoonA+=(2*Math.PI/MT)*dt;
+    const dM=Math.hypot(bx-mx,by-my);
+    if(dM<200000e3&&!passedFarSide){
+      const m2e=Math.atan2(-my,-mx),m2s=Math.atan2(by-my,bx-mx);
+      let ad=((m2s-m2e)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
+      if(Math.abs(ad)>Math.PI*0.5) passedFarSide=true;
+    }
+    if(t%(600)===0) path.push({x:bx,y:by,t});
+    const dE=Math.hypot(bx,by);
+    if(passedFarSide&&dE<RE+20000e3) break;
+    if(dE>DEM*4) break;
+  }
+  return path;
+}
+
+const nominalPath = computeNominalPath();
+
+function getNominalDeviation(x, y, t) {
+  // Find closest time in nominal path
+  let best = Infinity;
+  for (const np of nominalPath) {
+    if (Math.abs(np.t - t) < 600) {
+      const d = Math.hypot(x - np.x, y - np.y);
+      if (d < best) best = d;
+    }
+  }
+  // Also check neighbors
+  const idx = Math.round(t / 600);
+  for (let i = Math.max(0, idx - 2); i < Math.min(nominalPath.length, idx + 3); i++) {
+    const np = nominalPath[i];
+    if (np) {
+      const d = Math.hypot(x - np.x, y - np.y);
+      if (d < best) best = d;
+    }
+  }
+  return best === Infinity ? 0 : best;
+}
+
+// Initialize simulation state
+function initSimulation() {
+  const r0 = RE + 300e3, v0 = Math.sqrt(G*ME/r0);
+  const moonA0 = Math.PI * 0.22;
+  const transitDays = 5.0, moonLead = transitDays * 86400 * (2*Math.PI/MT);
+  const futMA = moonA0 + moonLead;
+  const idealAng = futMA - Math.PI;
+
+  let bx = Math.cos(idealAng)*r0, by = Math.sin(idealAng)*r0;
+  let bvx = -Math.sin(idealAng)*v0, bvy = Math.cos(idealAng)*v0;
+
+  // Apply TLI burn
+  const spd = Math.hypot(bvx, bvy);
+  const sma = (r0 + DEM*1.02) / 2;
+  const vTarget = Math.sqrt(G*ME*(2/r0 - 1/sma));
+  const dv = vTarget - spd;
+  bvx += bvx/spd * dv;
+  bvy += bvy/spd * dv;
+
+  return {
+    x: bx, y: by, vx: bvx, vy: bvy,
+    moonAngle: moonA0,
+    moonX: Math.cos(moonA0)*DEM, moonY: Math.sin(moonA0)*DEM,
+    t: 0, phase: 'tli',
+    passedFarSide: false, closestMoon: Infinity,
+    nominalDist: 0
+  };
+}
+
+function stepPhysics(state, dt) {
+  const mx = Math.cos(state.moonAngle)*DEM, my = Math.sin(state.moonAngle)*DEM;
+  state.moonX = mx; state.moonY = my;
+
+  // Earth gravity
+  let dx = -state.x, dy = -state.y;
+  let r2 = dx*dx + dy*dy, rr = Math.sqrt(r2);
+  let acc = G*ME/r2;
+  state.vx += (dx/rr)*acc*dt;
+  state.vy += (dy/rr)*acc*dt;
+
+  // Moon gravity
+  dx = mx - state.x; dy = my - state.y;
+  r2 = dx*dx + dy*dy; rr = Math.sqrt(r2);
+  if (rr > RM*0.5) {
+    acc = G*MM/r2;
+    state.vx += (dx/rr)*acc*dt;
+    state.vy += (dy/rr)*acc*dt;
+  }
+
+  state.x += state.vx * dt;
+  state.y += state.vy * dt;
+  state.moonAngle += (2*Math.PI/MT) * dt;
+  state.t += dt;
+
+  // Phase detection
+  const dM = Math.hypot(state.x - mx, state.y - my);
+  const dE = Math.hypot(state.x, state.y);
+  if (dM < state.closestMoon) state.closestMoon = dM;
+
+  if (dM < 200000e3 && !state.passedFarSide) {
+    const m2e = Math.atan2(-my, -mx);
+    const m2s = Math.atan2(state.y - my, state.x - mx);
+    let ad = ((m2s - m2e) % (2*Math.PI) + 3*Math.PI) % (2*Math.PI) - Math.PI;
+    if (Math.abs(ad) > Math.PI*0.5) state.passedFarSide = true;
+  }
+
+  let ph = state.t < 600 ? 'tli' : 'outbound';
+  if (dM < 120000e3 && !state.passedFarSide) ph = 'flyby';
+  else if (state.passedFarSide && dM < 200000e3) ph = 'flyby';
+  else if (state.passedFarSide) ph = 'inbound';
+
+  if (state.passedFarSide && dE < RE + 20000e3 && ph === 'inbound') ph = 'reentry';
+
+  state.phase = ph;
+  state.nominalDist = getNominalDeviation(state.x, state.y, state.t);
+
+  return dE > DEM * 4 || ph === 'reentry';
+}
+
+// Apply AI burn decision to physics
+function applyAIBurn(state, decision, ai) {
+  if (decision.action.burnScale <= 0) return;
+
+  const spd = Math.hypot(state.vx, state.vy);
+  if (spd < 1) return;
+
+  if (decision.id === 'abortToEarth') {
+    // Retrograde burn toward Earth
+    const toEarthX = -state.x, toEarthY = -state.y;
+    const toEarthD = Math.hypot(toEarthX, toEarthY);
+    const burnMag = spd * 0.008 * decision.action.burnScale;
+    state.vx += (toEarthX/toEarthD) * burnMag;
+    state.vy += (toEarthY/toEarthD) * burnMag;
+  } else if (decision.id === 'correctionBurn' || decision.id === 'freeReturnAdjust') {
+    // Correct toward nominal trajectory
+    const idx = Math.round(state.t / 600);
+    const target = nominalPath[Math.min(idx + 5, nominalPath.length - 1)];
+    if (target) {
+      const toDx = target.x - state.x, toDy = target.y - state.y;
+      const toD = Math.hypot(toDx, toDy);
+      if (toD > 100) {
+        const burnMag = spd * 0.0005 * decision.action.burnScale;
+        state.vx += (toDx/toD) * burnMag;
+        state.vy += (toDy/toD) * burnMag;
+      }
+    }
+  }
+  // attitudeAdjust: tiny random perturbation correction (implicit)
+}
+
+// ============================================================
+// ANOMALY EVENT SYSTEM - 異常イベント
+// ============================================================
+const ANOMALY_SCENARIOS = [
+  { system: 'thermal', severity: 0.35, name: '太陽センサー過熱', detail: 'SOLAR SENSOR OVERHEAT' },
+  { system: 'power', severity: 0.30, name: '太陽電池パネル劣化', detail: 'SOLAR ARRAY DEGRADATION' },
+  { system: 'comms', severity: 0.40, name: '高利得アンテナ信号劣化', detail: 'HGA SIGNAL DEGRADATION' },
+  { system: 'nav', severity: 0.25, name: 'スタートラッカー誤差増大', detail: 'STAR TRACKER DRIFT' },
+  { system: 'power', severity: 0.50, name: 'バッテリー短絡', detail: 'BATTERY SHORT CIRCUIT' },
+  { system: 'thermal', severity: 0.45, name: '冷却ループ圧力低下', detail: 'COOLANT LOOP PRESSURE DROP' },
+  { system: 'comms', severity: 0.55, name: 'DSN通信途絶', detail: 'DSN LINK LOSS' },
+  { system: 'nav', severity: 0.40, name: 'IMUジャイロドリフト', detail: 'IMU GYRO DRIFT' },
+];
+
+let nextAnomalyTime = 18000 + Math.random() * 36000; // First anomaly: 5-15 hours in
+let anomalyAlertTimer = 0;
+
+function checkAnomalies(state, ai) {
+  if (state.t >= nextAnomalyTime && state.phase !== 'reentry') {
+    const scenario = ANOMALY_SCENARIOS[Math.random() * ANOMALY_SCENARIOS.length | 0];
+    ai.injectAnomaly(scenario.system, scenario.severity);
+
+    // Show alert
+    const alertEl = document.getElementById('anomaly-alert');
+    alertEl.querySelector('.alert-text').textContent = scenario.detail;
+    alertEl.querySelector('.alert-detail').textContent = scenario.name;
+    alertEl.style.opacity = '1';
+    anomalyAlertTimer = 180; // frames
+
+    // Schedule next anomaly (20-60 hours later)
+    nextAnomalyTime = state.t + 72000 + Math.random() * 144000;
+  }
+
+  if (anomalyAlertTimer > 0) {
+    anomalyAlertTimer--;
+    if (anomalyAlertTimer === 0) {
+      document.getElementById('anomaly-alert').style.opacity = '0';
+    }
+  }
+}
+
+// Also inject small random perturbations to trajectory
+function injectPerturbation(state) {
+  // Tiny random force (solar pressure, outgassing, etc.)
+  if (Math.random() < 0.02) {
+    const mag = 0.003 * (0.5 + Math.random());
+    const ang = Math.random() * Math.PI * 2;
+    state.vx += Math.cos(ang) * mag;
+    state.vy += Math.sin(ang) * mag;
+  }
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+// Stars
+let stars=[];for(let i=0;i<200;i++)stars.push({x:Math.random(),y:Math.random(),r:Math.random()+.2,b:Math.random()*.35+.25});
+
+// Trail history
+const trail = [];
+const MAX_TRAIL = 6000;
+
+let camX=0,camY=0,zoom=1;
+const DS=0.0000006;
+function scr(x,y){const s=DS*zoom;return{x:W/2+(x-camX)*s,y:H/2+(y-camY)*s}}
+
+function updateCam(state){
+  const dE=Math.hypot(state.x,state.y);
+  let tZoom,tCX,tCY;
+  if(state.phase==='tli'){
+    tZoom=2.5;tCX=0;tCY=0;
+  }else{
+    const progress=Math.min(dE/(DEM*1.2),1);
+    tZoom=Math.max(0.38,1.2-progress*0.82);
+    tCX=state.x*0.15;tCY=state.y*0.15;
+  }
+  camX+=(tCX-camX)*0.04;camY+=(tCY-camY)*0.04;zoom+=(tZoom-zoom)*0.04;
+}
+
+function drawStars(){const ox=camX*DS*.01*zoom,oy=camY*DS*.01*zoom;
+  for(const s of stars){const sx=((s.x*W*1.5-ox)%W+W)%W,sy=((s.y*H*1.5-oy)%H+H)%H;
+    X.globalAlpha=s.b;X.fillStyle='#C8D8F0';X.beginPath();X.arc(sx,sy,s.r,0,6.283);X.fill()}X.globalAlpha=1}
+
+function drawBody(wx,wy,radius,colors,label){
+  const p=scr(wx,wy),r=Math.max(radius*0.5,radius*zoom);
+  const gg=X.createRadialGradient(p.x,p.y,r*.2,p.x,p.y,r*3);
+  gg.addColorStop(0,colors[2]);gg.addColorStop(1,'transparent');
+  X.fillStyle=gg;X.beginPath();X.arc(p.x,p.y,r*3,0,6.283);X.fill();
+  const g=X.createRadialGradient(p.x-r*.3,p.y-r*.3,r*.05,p.x,p.y,r);
+  g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);
+  X.fillStyle=g;X.beginPath();X.arc(p.x,p.y,r,0,6.283);X.fill();
+  X.fillStyle='rgba(200,210,230,0.25)';X.font=`${Math.max(8,9*zoom)}px Space Mono,monospace`;
+  X.textAlign='center';X.fillText(label,p.x,p.y+r+13);
+}
+
+function drawMoonOrbit(moonX,moonY){
+  const p=scr(0,0);const mDist=Math.hypot(moonX,moonY);const r=mDist*DS*zoom;
+  X.strokeStyle='rgba(107,170,238,0.05)';X.lineWidth=1;X.setLineDash([3,6]);
+  X.beginPath();X.arc(p.x,p.y,r,0,6.283);X.stroke();X.setLineDash([]);
+}
+
+function drawTrails(){
+  if(trail.length<2)return;
+  X.lineCap='round';
+  for(let i=1;i<trail.length;i++){
+    const pt=trail[i], prev=trail[i-1];
+    const p=scr(pt.x,pt.y), pp=scr(prev.x,prev.y);
+    const dist=Math.hypot(p.x-pp.x,p.y-pp.y);
+    if(dist<W&&dist>0.3){
+      const isOut=pt.phase==='outbound'||pt.phase==='tli';
+      const age = 1 - (trail.length - i) / trail.length;
+      const alpha=0.15 + age * 0.55;
+      X.strokeStyle=isOut?`rgba(74,192,245,${alpha})`:`rgba(245,166,35,${alpha})`;
+      X.lineWidth=Math.max(1.5,2*zoom);
+      X.beginPath();X.moveTo(pp.x,pp.y);X.lineTo(p.x,p.y);X.stroke();
+    }
+  }
+}
+
+function drawOrion(px,py,angle,scale,phase,aiAction){
+  const sz=scale*7;
+  X.save();X.translate(px,py);
+  if(phase==='tli'){
+    X.rotate(angle);
+    X.fillStyle='#3a3e48';X.fillRect(-sz*0.4,-sz*0.7,sz*0.8,sz*1.4);
+    X.fillStyle='#d8dce8';X.beginPath();
+    X.moveTo(-sz*0.3,sz*0.7);X.lineTo(sz*0.3,sz*0.7);
+    X.lineTo(sz*0.5,-sz*0.7);X.lineTo(-sz*0.5,-sz*0.7);X.closePath();X.fill();
+    X.fillStyle='#6b4a2a';X.fillRect(-sz*0.55,-sz*0.8,sz*1.1,sz*0.12);
+    const fl=sz*(2.5+Math.random()*1.5);
+    const gf=X.createLinearGradient(0,sz*1.4,0,sz*1.4+fl);
+    gf.addColorStop(0,'rgba(255,220,80,0.95)');gf.addColorStop(0.3,'rgba(255,120,20,0.7)');gf.addColorStop(1,'transparent');
+    X.fillStyle=gf;X.beginPath();X.moveTo(-sz*0.5,sz*1.4);X.lineTo(0,sz*1.4+fl);X.lineTo(sz*0.5,sz*1.4);X.fill();
+    const fl2=fl*0.6;
+    const gf2=X.createLinearGradient(0,sz*1.4,0,sz*1.4+fl2);
+    gf2.addColorStop(0,'rgba(255,255,200,0.8)');gf2.addColorStop(1,'transparent');
+    X.fillStyle=gf2;X.beginPath();X.moveTo(-sz*0.2,sz*1.4);X.lineTo(0,sz*1.4+fl2);X.lineTo(sz*0.2,sz*1.4);X.fill();
+  } else if(phase==='reentry'){
+    const pY=-sz*3.5;
+    for(let ci=-1;ci<=1;ci++){
+      const cx=ci*sz*1.2, cy=pY, cR=sz*1.1;
+      for(let stripe=0;stripe<6;stripe++){
+        X.fillStyle=stripe%2===0?'rgba(255,80,30,0.7)':'rgba(255,255,255,0.7)';
+        const a1=Math.PI+stripe*Math.PI/6, a2=Math.PI+(stripe+1)*Math.PI/6;
+        X.beginPath();X.moveTo(cx,cy);X.arc(cx,cy,cR,a1,a2);X.closePath();X.fill();
+      }
+      X.strokeStyle='rgba(255,255,255,0.25)';X.lineWidth=0.5;
+      X.beginPath();X.moveTo(cx-cR,cy);X.lineTo(0,0);X.stroke();
+      X.beginPath();X.moveTo(cx+cR,cy);X.lineTo(0,0);X.stroke();
+      X.beginPath();X.moveTo(cx,cy);X.lineTo(0,0);X.stroke();
+    }
+    X.fillStyle='#d8dce8';X.beginPath();
+    X.moveTo(-sz*0.4,sz*0.5);X.lineTo(sz*0.4,sz*0.5);
+    X.lineTo(sz*0.55,-sz*0.4);X.lineTo(-sz*0.55,-sz*0.4);X.closePath();X.fill();
+    X.fillStyle='#8b5a2a';X.fillRect(-sz*0.6,sz*0.45,sz*1.2,sz*0.15);
+  } else {
+    X.rotate(angle);
+    // Solar panels
+    X.fillStyle='#1a3366';
+    X.fillRect(-sz*0.25,-sz*2.4,sz*0.5,sz*1);
+    X.fillRect(-sz*0.25,sz*1.4,sz*0.5,sz*1);
+    // Service module
+    X.fillStyle='#3a3e48';X.fillRect(-sz*0.4,-sz*0.7,sz*0.8,sz*1.4);
+    // Crew module
+    X.fillStyle='#d8dce8';X.beginPath();
+    X.moveTo(-sz*0.3,sz*0.7);X.lineTo(sz*0.3,sz*0.7);X.lineTo(sz*0.5,-sz*0.7);X.lineTo(-sz*0.5,-sz*0.7);X.closePath();X.fill();
+    X.fillStyle='#6b4a2a';X.fillRect(-sz*0.55,-sz*0.8,sz*1.1,sz*0.12);
+
+    // Draw thruster fire for burns
+    if (aiAction && aiAction.action.burnScale > 0) {
+      const fl = sz * (0.8 + Math.random() * 0.6) * Math.min(aiAction.action.burnScale, 1);
+      const gf = X.createLinearGradient(0, -sz*0.7, 0, -sz*0.7 - fl);
+      gf.addColorStop(0, 'rgba(100,180,255,0.8)');
+      gf.addColorStop(0.5, 'rgba(80,140,255,0.4)');
+      gf.addColorStop(1, 'transparent');
+      X.fillStyle = gf;
+      X.beginPath();
+      X.moveTo(-sz*0.2, -sz*0.7);
+      X.lineTo(0, -sz*0.7 - fl);
+      X.lineTo(sz*0.2, -sz*0.7);
+      X.fill();
+    }
+  }
+  X.restore();
+
+  // Power save indicator (pulsing dim overlay)
+  if (aiAction && aiAction.id === 'powerSave') {
+    const pulse = 0.15 + Math.sin(Date.now() * 0.005) * 0.1;
+    X.fillStyle = `rgba(74,158,245,${pulse})`;
+    X.beginPath(); X.arc(px, py, sz * 3, 0, 6.283); X.fill();
+  }
+}
+
+// Phase display info
+const phaseInfo={
+  tli:{name:'TLI BURN',color:'var(--red)',label:'主力エンジンを噴射 — 月まで推進'},
+  outbound:{name:'TRANS-LUNAR',color:'var(--out)',label:'月へ向かう往路'},
+  flyby:{name:'LUNAR FLYBY',color:'#CCC',label:'月に接近通過'},
+  inbound:{name:'EARTH RETURN',color:'var(--inb)',label:'地球へ帰還'},
+  reentry:{name:'SPLASHDOWN',color:'#0C6',label:'太平洋に着水 — MISSION COMPLETE'}
+};
+
+// ============================================================
+// HUD UPDATE
+// ============================================================
+function updateHUD(state){
+  const spd=Math.hypot(state.vx,state.vy);
+  const alt=Math.hypot(state.x,state.y)-RE;
+  document.getElementById('hS').innerHTML=(spd/1000).toFixed(1)+'<span> KM/S</span>';
+  document.getElementById('hA').innerHTML=Math.max(0,alt/1000|0).toLocaleString()+'<span> KM</span>';
+  const info=phaseInfo[state.phase]||phaseInfo.outbound;
+  const tag=document.getElementById('hP');
+  tag.textContent=info.name;tag.style.color=info.color;tag.style.borderColor=info.color;
+  document.getElementById('hD').textContent=(state.t/86400).toFixed(1);
+  const t=state.t|0,h=t/3600|0,mi=(t%3600)/60|0,s=t%60;
+  document.getElementById('timer').textContent=`T+ ${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  document.getElementById('phase-label').textContent=info.label;
+}
+
+function updateAIPanel(ai) {
+  // Decision label
+  const dec = ai.currentAction;
+  if (dec) {
+    const decEl = document.getElementById('ai-decision');
+    decEl.textContent = `${dec.action.name}: ${dec.action.label}`;
+    decEl.style.color = dec.score > 0.7 ? '#FC3D21' : dec.score > 0.4 ? '#F5A623' : '#4AC0F5';
+  }
+
+  // Score bars
+  const scoresEl = document.getElementById('ai-scores');
+  let html = '';
+  const actionColors = {
+    coast:'#4AC0F5', correctionBurn:'#F5A623', powerSave:'#9B6BF5',
+    abortToEarth:'#FC3D21', freeReturnAdjust:'#4AE5A5', attitudeAdjust:'#E5C94A'
+  };
+  for (const s of ai.allScores) {
+    const pct = (s.score * 100).toFixed(0);
+    const color = actionColors[s.id] || '#4AC0F5';
+    const isBest = ai.currentAction && s.id === ai.currentAction.id;
+    const labelStyle = isBest ? 'color:#fff;font-weight:700' : '';
+    html += `<div class="score-row">
+      <div class="score-label" style="${labelStyle}">${isBest?'▸ ':''}${s.action.name}</div>
+      <div class="score-bar-bg"><div class="score-bar" style="width:${pct}%;background:${color}${isBest?'':'88'}"></div></div>
+      <div class="score-val" style="${isBest?'color:#fff':''}">${s.score.toFixed(2)}</div>
+    </div>`;
+  }
+  scoresEl.innerHTML = html;
+
+  // Fuel bar
+  const fuelPct = (ai.fuel * 100).toFixed(0);
+  const fuelBar = document.getElementById('fuel-bar');
+  fuelBar.style.width = fuelPct + '%';
+  fuelBar.style.background = ai.fuel > 0.4 ? 'var(--green)' : ai.fuel > 0.15 ? 'var(--warn)' : 'var(--crit)';
+  document.getElementById('fuel-pct').textContent = fuelPct + '%';
+
+  // System health indicators
+  const sysRow = document.getElementById('sys-row');
+  const sysNames = { thermal: 'THM', power: 'PWR', comms: 'COM', nav: 'NAV' };
+  let sysHtml = '';
+  for (const [key, label] of Object.entries(sysNames)) {
+    const v = ai.systemHealth[key];
+    const cls = v > 0.7 ? 'sys-ok' : v > 0.3 ? 'sys-warn' : 'sys-crit';
+    const icon = v > 0.7 ? '●' : v > 0.3 ? '◐' : '○';
+    sysHtml += `<span class="sys-indicator ${cls}">${icon} ${label}</span>`;
+  }
+  sysRow.innerHTML = sysHtml;
+
+  // Event log
+  const logEl = document.getElementById('ai-log');
+  let logHtml = '';
+  for (const entry of ai.eventLog) {
+    entry.age++;
+    const cls = entry.age < 60 ? 'fresh' : '';
+    const acls = entry.isAnomaly ? 'anomaly' : '';
+    logHtml += `<div class="log-entry ${cls} ${acls}">${entry.msg}</div>`;
+  }
+  logEl.innerHTML = logHtml;
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+const ai = new OrionAI();
+let simState = initSimulation();
+let missionComplete = false;
+const simDt = 30; // physics timestep: 30 seconds
+const stepsPerFrame = [1, 3, 5, 10, 20];
+let spdIdx = 2;
+
+document.getElementById('speed').addEventListener('click', () => {
+  spdIdx = (spdIdx + 1) % stepsPerFrame.length;
+  document.getElementById('speed').textContent = 'x' + stepsPerFrame[spdIdx];
+});
+
+function loop() {
+  X.clearRect(0, 0, W, H);
+  drawStars();
+
+  if (!missionComplete) {
+    const steps = stepsPerFrame[spdIdx];
+    for (let i = 0; i < steps; i++) {
+      // AI decides
+      const decision = ai.decide(simState);
+
+      // Apply AI burn to physics
+      applyAIBurn(simState, decision, ai);
+
+      // Inject perturbations
+      injectPerturbation(simState);
+
+      // Step physics
+      const done = stepPhysics(simState, simDt);
+
+      // Check anomalies
+      checkAnomalies(simState, ai);
+
+      // AI system recovery
+      ai.recover(simDt);
+
+      // Record trail
+      if (trail.length === 0 || simState.t - trail[trail.length-1].t >= 300) {
+        trail.push({ x: simState.x, y: simState.y, phase: simState.phase, t: simState.t });
+        if (trail.length > MAX_TRAIL) trail.shift();
+      }
+
+      if (done) { missionComplete = true; break; }
+    }
+  }
+
+  updateCam(simState);
+  drawMoonOrbit(simState.moonX, simState.moonY);
+  drawTrails();
+  drawBody(0, 0, 16, ['#6BAAEE','#0B3D91','rgba(30,80,200,0.08)'], 'EARTH');
+  drawBody(simState.moonX, simState.moonY, 7, ['#E0E0E0','#808080','rgba(200,200,210,0.04)'], 'MOON');
+
+  // Draw Orion
+  const p = scr(simState.x, simState.y);
+  const ang = Math.atan2(simState.vy, simState.vx);
+  drawOrion(p.x, p.y, ang, Math.max(0.8, zoom)*1.1, simState.phase, ai.currentAction);
+  X.fillStyle = 'rgba(255,255,255,0.35)';
+  X.font = `${Math.max(8,9*zoom)}px Space Mono,monospace`;
+  X.textAlign = 'center';
+  X.fillText('ORION', p.x, p.y - 12*zoom);
+
+  updateHUD(simState);
+  updateAIPanel(ai);
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
