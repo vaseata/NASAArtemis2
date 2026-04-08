@@ -6,7 +6,7 @@
 <title>ARTEMIS II - Utility AI Mission Simulation</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
-:root{--red:#FC3D21;--bg:#040810;--dim:rgba(232,237,245,0.3);--accent:#4A9EF5;--out:#4AC0F5;--inb:#F58252;--green:#0C6;--warn:#F5A623;--crit:#FC3D21}
+:root{--red:#FC3D21;--bg:#040810;--dim:rgba(232,237,245,0.3);--accent:#4A9EF5;--out:#2E6BBF;--inb:#E87040;--green:#0C6;--warn:#F5A623;--crit:#FC3D21}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:#E8EDF5;font-family:'Space Grotesk',system-ui,sans-serif;
   overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;position:fixed;width:100%;height:100%}
@@ -169,18 +169,34 @@ function scr(x,y){const s=DS*zoom;return{x:W/2+(x-camX)*s,y:H/2+(y-camY)*s*TILT}
 function updateCam(state){
   const dE=Math.hypot(state.x,state.y);
   const dM=Math.hypot(state.x-state.moonX,state.y-state.moonY);
+  const moonScreenR=DEM*DS; // moon orbit radius in screen px at zoom=1
   let tZoom,tCX,tCY;
-  if(state.phase==='tli'){
-    tZoom=2.5;tCX=0;tCY=0;
+
+  if(missionComplete){
+    // After splashdown: zoom out to show full figure-8 trajectory
+    tZoom=W/(moonScreenR*2.3);
+    tCX=0;tCY=0;
+  }else if(state.phase==='tli'){
+    // Launch: zoom in on Earth
+    tZoom=4.0;tCX=0;tCY=0;
   }else if(dM<DEM*0.15){
+    // Moon approach: zoom in on Moon-ship area
     const closeness=1-dM/(DEM*0.15);
-    tZoom=1.2+closeness*3.5;
+    tZoom=2.0+closeness*4.0;
     tCX=state.moonX*0.6+state.x*0.4;
     tCY=state.moonY*0.6+state.y*0.4;
+  }else if(state.passedFarSide&&dE<DEM*0.3){
+    // Returning near Earth: zoom in
+    const closeness=1-dE/(DEM*0.3);
+    tZoom=1.5+closeness*2.5;
+    tCX=state.x*0.3;tCY=state.y*0.3;
   }else{
-    const progress=Math.min(dE/(DEM*1.2),1);
-    tZoom=Math.max(0.38,1.2-progress*0.82);
-    tCX=state.x*0.15;tCY=state.y*0.15;
+    // Transit: keep Earth, ship, and Moon all visible
+    // Zoom so that ship distance fits comfortably
+    const maxDist=Math.max(dE,dM)*1.1;
+    tZoom=Math.max(0.6,W/(maxDist*DS*2.5));
+    tZoom=Math.min(tZoom,1.8);
+    tCX=state.x*0.2;tCY=state.y*0.2;
   }
   camX+=(tCX-camX)*0.04;camY+=(tCY-camY)*0.04;zoom+=(tZoom-zoom)*0.04;
 }
@@ -229,8 +245,8 @@ function drawTrails(){
     for(let i=1;i<pts.length;i++)X.lineTo(pts[i].x,pts[i].y);
     X.stroke();
   }
-  strokePath(paths.out,'rgba(74,192,245,0.6)');
-  strokePath(paths.inb,'rgba(245,130,80,0.7)');
+  strokePath(paths.out,'rgba(46,107,191,0.7)');
+  strokePath(paths.inb,'rgba(232,112,64,0.7)');
 }
 
 function drawOrion(px,py,angle,scale,phase){
@@ -349,7 +365,7 @@ function updateHUD(state){
   document.getElementById('hD').textContent=(state.t/86400).toFixed(1);
   const t=state.t|0,h=t/3600|0,mi=(t%3600)/60|0,s=t%60;
   document.getElementById('timer').textContent=`T+ ${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  document.getElementById('phase-label').textContent=info.label;
+  const pl=document.getElementById('phase-label');pl.textContent=info.label;pl.style.color=info.color;
 }
 
 // ============================================================
