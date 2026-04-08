@@ -567,22 +567,35 @@ let camX=0,camY=0,zoom=1;
 const DS=0.0000006;
 function scr(x,y){const s=DS*zoom;return{x:W/2+(x-camX)*s,y:H/2+(y-camY)*s}}
 
+// Camera style: randomized per session
+let camStyle={trackShip:0.15,trackMoon:0.6,baseZoom:1.2,tliZoom:2.5,flybyZoom:3.5};
+function randomizeCamStyle(){
+  const styles=[
+    {trackShip:0.15,trackMoon:0.6,baseZoom:1.2,tliZoom:2.5,flybyZoom:3.5,name:'standard'},
+    {trackShip:0.4,trackMoon:0.3,baseZoom:1.0,tliZoom:1.8,flybyZoom:4.0,name:'ship-follow'},
+    {trackShip:0.05,trackMoon:0.5,baseZoom:0.8,tliZoom:1.5,flybyZoom:3.0,name:'wide'},
+    {trackShip:0.55,trackMoon:0.4,baseZoom:1.4,tliZoom:3.0,flybyZoom:5.0,name:'close-up'},
+    {trackShip:0.25,trackMoon:0.7,baseZoom:0.9,tliZoom:2.0,flybyZoom:4.5,name:'moon-focus'},
+  ];
+  camStyle=styles[Math.floor(Math.random()*styles.length)];
+}
+randomizeCamStyle();
+
 function updateCam(state){
   const dE=Math.hypot(state.x,state.y);
   const dM=Math.hypot(state.x-state.moonX,state.y-state.moonY);
   let tZoom,tCX,tCY;
   if(state.phase==='tli'){
-    tZoom=2.5;tCX=0;tCY=0;
+    tZoom=camStyle.tliZoom;tCX=0;tCY=0;
   }else if(dM<DEM*0.15){
-    // Near Moon: zoom in and track midpoint between ship and Moon
     const closeness=1-dM/(DEM*0.15);
-    tZoom=1.2+closeness*3.5;
-    tCX=state.moonX*0.6+state.x*0.4;
-    tCY=state.moonY*0.6+state.y*0.4;
+    tZoom=camStyle.baseZoom+closeness*camStyle.flybyZoom;
+    tCX=state.moonX*camStyle.trackMoon+state.x*(1-camStyle.trackMoon);
+    tCY=state.moonY*camStyle.trackMoon+state.y*(1-camStyle.trackMoon);
   }else{
     const progress=Math.min(dE/(DEM*1.2),1);
-    tZoom=Math.max(0.38,1.2-progress*0.82);
-    tCX=state.x*0.15;tCY=state.y*0.15;
+    tZoom=Math.max(0.38,camStyle.baseZoom-progress*0.82);
+    tCX=state.x*camStyle.trackShip;tCY=state.y*camStyle.trackShip;
   }
   camX+=(tCX-camX)*0.04;camY+=(tCY-camY)*0.04;zoom+=(tZoom-zoom)*0.04;
 }
@@ -605,8 +618,13 @@ function drawBody(wx,wy,radius,colors,label){
 
 function drawMoonOrbit(moonX,moonY){
   const p=scr(0,0);const r=DEM*DS*zoom;
-  X.strokeStyle='rgba(107,170,238,0.15)';X.lineWidth=1;X.setLineDash([4,8]);
+  X.strokeStyle='rgba(107,170,238,0.25)';X.lineWidth=1;X.setLineDash([6,6]);
   X.beginPath();X.arc(p.x,p.y,r,0,6.283);X.stroke();X.setLineDash([]);
+  // Moon orbit label
+  const la=Math.PI*-0.15;
+  const lx=p.x+Math.cos(la)*r,ly=p.y+Math.sin(la)*r;
+  X.fillStyle='rgba(107,170,238,0.2)';X.font='8px Space Mono,monospace';
+  X.textAlign='center';X.fillText('LUNAR ORBIT',lx,ly-6);
 }
 
 function drawTrails(){
@@ -825,6 +843,7 @@ function resetSim() {
   ai.decisionInterval = 0;
   ai.aborted = false;
   camX = 0; camY = 0; zoom = 1;
+  randomizeCamStyle();
 }
 
 function loop() {
