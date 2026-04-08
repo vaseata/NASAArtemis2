@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "artemis2",
-      "runtimeExecutable": "ruby",
-      "runtimeArgs": ["-run", "-e", "httpd", "--", "-p", "8090", "."],
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8090"],
       "port": 8090
     }
   ]
